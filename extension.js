@@ -1288,6 +1288,36 @@ async function runPostFixCommands({ cwd, root, logPath }) {
     }
   };
 
+  const extractEslintErrorFiles = (text, { cwdPrefix } = {}) => {
+    try {
+      const out = [];
+      const seen = new Set();
+      const cwdAbs = String(cwdPrefix || '').replace(/\\/g, '/').replace(/\/+$/, '');
+      const lines = String(text || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .split('\n');
+      for (const raw of lines) {
+        const line = String(raw || '').trim();
+        if (!line) continue;
+        // ESLint output often includes absolute file paths on their own line.
+        if (line.startsWith('/')) {
+          const abs = line;
+          let rel = abs;
+          if (cwdAbs && abs.startsWith(cwdAbs + '/')) rel = abs.slice(cwdAbs.length + 1);
+          if (!rel || rel.startsWith('.dev-healer/')) continue;
+          if (!seen.has(rel)) {
+            seen.add(rel);
+            out.push(rel);
+          }
+        }
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  };
+
   for (const cmdText of list) {
     const normalized = String(cmdText || '').trim();
     if (!isAllowed(normalized)) {
@@ -1354,7 +1384,65 @@ async function runPostFixCommands({ cwd, root, logPath }) {
         }
       }
       continue;
-    }
+
+
+    // Special case: `npm run lint` often fails due to pre-existing repo lint drift. We still want lint to be a guard,
+    // but only block the fix if lint errors touch files changed by this patch.
+    if (/^npm\\s+run\\s+lint(\\s|$)/i.test(normalized)) {
+      const st = await gitCapture(cwd, ['status', '--porcelain']);
+      const changed = parseStatusPaths(st.stdout || '');
+      if (!changed.length) continue;
+
+      if (root && logPath) appendFixLog(root, logPath, '[step] post-fix: npm run lint');
+      const { command, args, shell } = splitCommandShell(cmdText);
+      const res = await spawnWithStreaming({
+        command,
+        args,
+        cwd,
+        shell,
+        env: process.env,
+        onStdout: (t) => root && logPath && appendFixText(root, logPath, t),
+        onStderr: (t) => root && logPath && appendFixText(root, logPath, t),
+      });
+      if (res.code !== 0) {
+        const combinedOut = String(res.stdout || '') + '\n' + String(res.stderr || '');
+        const lintFiles = extractEslintErrorFiles(combinedOut, { cwdPrefix: cwd });
+        const changedSet = new Set(changed);
+        const hits = lintFiles.filter((fp) => changedSet.has(fp));
+
+        if (!hits.length && lintFiles.length) {
+          if (root && logPath) {
+            appendFixLog(
+              root,
+              logPath,
+              '[warn] post-fix lint failed, but no lint errors were reported in changed files. Continuing (baseline lint drift).'
+            );
+            appendFixLog(
+              root,
+              logPath,
+              '[info] lint error files (first 12):\n' + lintFiles.slice(0, 12).map((fp) => '- ' + fp).join('\n')
+            );
+          }
+          continue;
+        }
+
+        const extra =
+          hits.length && lintFiles.length
+            ? '\n\nLint errors include changed files:\n' + hits.slice(0, 12).map((fp) => '- ' + fp).join('\n')
+            : '';
+
+        throw new Error(
+          'post-fix command failed: npm run lint\nexit: ' +
+            String(res.code) +
+            extra +
+            '\n\nstderr:\n' +
+            String(res.stderr || '').slice(-8000) +
+            '\n\nstdout:\n' +
+            String(res.stdout || '').slice(-8000)
+        );
+      }
+      continue;
+    }    }
 
     const { command, args, shell } = splitCommandShell(cmdText);
     if (root && logPath) appendFixLog(root, logPath, `[step] post-fix: ${cmdText}`);
