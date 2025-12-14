@@ -2,7 +2,7 @@
   "name": "cursor-dev-healer",
   "displayName": "Cursor Dev Healer",
   "description": "Fix bugs at the speed of thought. Dev Healer watches Vite and a Playwright browser, turns errors into clean Fix/Ignore prompts, and lets Cursor Agent generate safe, check‑gated patches—isolated in git worktrees and applied back with stash‑aware conflict helpers.",
-  "version": "0.1.66",
+  "version": "0.1.67",
   "publisher": "baerautotech",
   "license": "MIT",
   "repository": {
@@ -31,7 +31,9 @@
     "onCommand:devHealer.openLastFixLog",
     "onCommand:devHealer.rerunLastFix",
     "onCommand:devHealer.openWorkspaceApplyConflicts",
-    "onCommand:devHealer.stageResolvedWorkspaceConflicts"
+    "onCommand:devHealer.stageResolvedWorkspaceConflicts",
+    "onCommand:devHealer.hardReloadWatchedBrowser",
+    "onCommand:devHealer.freshSessionWatchedBrowser"
   ],
   "contributes": {
     "commands": [
@@ -78,6 +80,14 @@
       {
         "command": "devHealer.stageResolvedWorkspaceConflicts",
         "title": "Dev Healer: Stage Resolved Workspace Conflicts"
+      },
+      {
+        "command": "devHealer.hardReloadWatchedBrowser",
+        "title": "Dev Healer: Hard Reload Watched Browser (Keep Login)"
+      },
+      {
+        "command": "devHealer.freshSessionWatchedBrowser",
+        "title": "Dev Healer: Restart Watched Browser (Fresh Session)"
       }
     ],
     "configuration": {
@@ -306,7 +316,17 @@
         "devHealer.browserAutoReloadOnFixSuccess": {
           "type": "boolean",
           "default": true,
-          "description": "After a successful fix that is applied to your main workspace, send a reload command to the watched Playwright browser."
+          "description": "After a successful fix that is applied to your main workspace, send a reload command to the watched Playwright browser. Mode is controlled by devHealer.browserReloadModeOnFixSuccess."
+        },
+        "devHealer.browserReloadModeOnFixSuccess": {
+          "type": "string",
+          "default": "hard",
+          "enum": [
+            "soft",
+            "hard",
+            "fresh"
+          ],
+          "description": "When auto-reload is enabled, choose the reload mode after a successful fix is applied to your main workspace. soft: normal reload. hard: keep login but clear SW/cache storage + cache-bust. fresh: restart watched browser with a fresh profile (like a new machine; will log you out)."
         }
       }
     }

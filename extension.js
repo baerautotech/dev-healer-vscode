@@ -53,6 +53,7 @@ function cfg() {
     fixCherryPickStrategy: c.get('fixCherryPickStrategy'),
     browserOcrOnManualReports: c.get('browserOcrOnManualReports', true),
     browserAutoReloadOnFixSuccess: c.get('browserAutoReloadOnFixSuccess'),
+    browserReloadModeOnFixSuccess: c.get('browserReloadModeOnFixSuccess'),
     visionOcrCommand: c.get('visionOcrCommand', 'node tools/dev-healer-vision-ocr.mjs'),
   };
 }
@@ -1688,12 +1689,26 @@ async function cherryPickToWorkspaceIfConfigured({ root, logPath, committedSha, 
   }
 }
 
+function sendWatchedBrowserCmd(cmd) {
+  try {
+    if (!watchedBrowser?.terminal) return false;
+    const c = String(cmd || '').trim();
+    if (!c) return false;
+    watchedBrowser.terminal.sendText('DEV_HEALER_BROWSER_CMD ' + c, true);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function sendWatchedBrowserReloadIfConfigured() {
   try {
     const enabled = cfg().browserAutoReloadOnFixSuccess !== false; // default true via package.json
     if (!enabled) return false;
     if (!watchedBrowser?.terminal) return false;
-    watchedBrowser.terminal.sendText('DEV_HEALER_BROWSER_CMD reload', true);
+    const mode = String(cfg().browserReloadModeOnFixSuccess || 'hard').toLowerCase();
+    const cmd = mode === 'fresh' ? 'fresh-session' : mode === 'soft' ? 'reload' : 'hard-reload';
+    sendWatchedBrowserCmd(cmd);
     return true;
   } catch {
     return false;
@@ -3202,10 +3217,40 @@ async function reloadWatchedBrowser() {
       return;
     }
     watchedBrowser.terminal.show(true);
-    watchedBrowser.terminal.sendText('DEV_HEALER_BROWSER_CMD reload', true);
+    const mode = String(cfg().browserReloadModeOnFixSuccess || 'hard').toLowerCase();
+    const cmd = mode === 'fresh' ? 'fresh-session' : mode === 'soft' ? 'reload' : 'hard-reload';
+    sendWatchedBrowserCmd(cmd);
     vscode.window.showInformationMessage('Dev Healer: Reload sent to watched browser.');
   } catch (e) {
     vscode.window.showErrorMessage(`Dev Healer: Failed to reload watched browser: ${String(e?.message || e)}`);
+  }
+}
+
+async function hardReloadWatchedBrowser() {
+  try {
+    if (!watchedBrowser?.terminal) {
+      vscode.window.showInformationMessage('Dev Healer: Watched browser is not running.');
+      return;
+    }
+    watchedBrowser.terminal.show(true);
+    sendWatchedBrowserCmd('hard-reload');
+    vscode.window.showInformationMessage('Dev Healer: Hard reload sent to watched browser (keeps login).');
+  } catch (e) {
+    vscode.window.showErrorMessage(`Dev Healer: Failed to hard reload watched browser: ${String(e?.message || e)}`);
+  }
+}
+
+async function freshSessionWatchedBrowser() {
+  try {
+    if (!watchedBrowser?.terminal) {
+      vscode.window.showInformationMessage('Dev Healer: Watched browser is not running.');
+      return;
+    }
+    watchedBrowser.terminal.show(true);
+    sendWatchedBrowserCmd('fresh-session');
+    vscode.window.showWarningMessage('Dev Healer: Restarting watched browser with a fresh session (you will likely be logged out).', { modal: false });
+  } catch (e) {
+    vscode.window.showErrorMessage(`Dev Healer: Failed to restart watched browser: ${String(e?.message || e)}`);
   }
 }
 
@@ -3283,6 +3328,14 @@ function activate(context) {
     await reloadWatchedBrowser();
   });
 
+  const hardReloadBrowser = vscode.commands.registerCommand('devHealer.hardReloadWatchedBrowser', async () => {
+    await hardReloadWatchedBrowser();
+  });
+
+  const freshSessionBrowser = vscode.commands.registerCommand('devHealer.freshSessionWatchedBrowser', async () => {
+    await freshSessionWatchedBrowser();
+  });
+
   const openConflictsCmd = vscode.commands.registerCommand('devHealer.openWorkspaceApplyConflicts', async () => {
     await openWorkspaceApplyConflicts();
   });
@@ -3348,6 +3401,8 @@ function activate(context) {
     startBrowser,
     stopBrowser,
     reloadBrowser,
+    hardReloadBrowser,
+    freshSessionBrowser,
     openConflictsCmd,
     stageResolvedConflictsCmd,
     selfTest,
