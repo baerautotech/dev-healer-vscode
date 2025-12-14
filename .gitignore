@@ -1,0 +1,12 @@
+node_modules/
+*.vsix
+*.log
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+

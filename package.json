@@ -1,0 +1,314 @@
+{
+  "name": "cursor-dev-healer",
+  "displayName": "Cursor Dev Healer",
+  "description": "Fix bugs at the speed of thought. Dev Healer watches Vite and a Playwright browser, turns errors into clean Fix/Ignore prompts, and lets Cursor Agent generate safe, check‑gated patches—isolated in git worktrees and applied back with stash‑aware conflict helpers.",
+  "version": "0.1.65",
+  "publisher": "baerautotech",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baerautotech/dev-healer-vscode.git"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "devDependencies": {
+    "@vscode/vsce": "^3.7.1"
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:package.json",
+    "onCommand:devHealer.startWatchedDev",
+    "onCommand:devHealer.stopWatchedDev",
+    "onCommand:devHealer.startWatchedBrowser",
+    "onCommand:devHealer.stopWatchedBrowser",
+    "onCommand:devHealer.selfTest",
+    "onCommand:devHealer.showFixOutput",
+    "onCommand:devHealer.openLastFixLog",
+    "onCommand:devHealer.rerunLastFix",
+    "onCommand:devHealer.openWorkspaceApplyConflicts",
+    "onCommand:devHealer.stageResolvedWorkspaceConflicts"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "devHealer.startWatchedDev",
+        "title": "Dev Healer: Start Watched Dev Server"
+      },
+      {
+        "command": "devHealer.stopWatchedDev",
+        "title": "Dev Healer: Stop Watched Dev Server"
+      },
+      {
+        "command": "devHealer.startWatchedBrowser",
+        "title": "Dev Healer: Start Watched Browser (Playwright)"
+      },
+      {
+        "command": "devHealer.stopWatchedBrowser",
+        "title": "Dev Healer: Stop Watched Browser (Playwright)"
+      },
+      {
+        "command": "devHealer.selfTest",
+        "title": "Dev Healer: Self Test (Fix/Ignore Prompt)"
+      },
+      {
+        "command": "devHealer.showFixOutput",
+        "title": "Dev Healer: Show Fix Output"
+      },
+      {
+        "command": "devHealer.openLastFixLog",
+        "title": "Dev Healer: Open Last Fix Log"
+      },
+      {
+        "command": "devHealer.rerunLastFix",
+        "title": "Dev Healer: Rerun Last Fix (Reuse Saved Prompt)"
+      },
+      {
+        "command": "devHealer.reloadWatchedBrowser",
+        "title": "Dev Healer: Reload Watched Browser"
+      },
+      {
+        "command": "devHealer.openWorkspaceApplyConflicts",
+        "title": "Dev Healer: Open Workspace Apply Conflicts"
+      },
+      {
+        "command": "devHealer.stageResolvedWorkspaceConflicts",
+        "title": "Dev Healer: Stage Resolved Workspace Conflicts"
+      }
+    ],
+    "configuration": {
+      "title": "Dev Healer",
+      "properties": {
+        "devHealer.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Fix/Ignore prompts on runtime errors."
+        },
+        "devHealer.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start the watched dev server when this workspace opens."
+        },
+        "devHealer.autoStartBrowser": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start the watched Playwright browser when this workspace opens."
+        },
+        "devHealer.devCommand": {
+          "type": "string",
+          "default": "npm run dev -- --clearScreen false",
+          "description": "Command used to start the dev server under watch."
+        },
+        "devHealer.errorCooldownMs": {
+          "type": "number",
+          "default": 30000,
+          "description": "Minimum time between prompts for the same error signature."
+        },
+        "devHealer.fixPatchCommand": {
+          "type": "string",
+          "default": "node tools/cursor-agent-patch.mjs",
+          "description": "Command that reads prompt from stdin and outputs a unified diff to stdout."
+        },
+        "devHealer.browserCommand": {
+          "type": "string",
+          "default": "node tools/dev-healer-browser.mjs",
+          "description": "Command used to start a headed Playwright browser that emits DEV_HEALER_BROWSER_EVENT lines."
+        },
+        "devHealer.browserUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:3000/",
+          "description": "URL opened by the watched browser (passed via DEV_HEALER_BROWSER_URL)."
+        },
+        "devHealer.browserCaptureMode": {
+          "type": "string",
+          "default": "both",
+          "enum": [
+            "manual",
+            "auto",
+            "both"
+          ],
+          "description": "When to capture screenshots/traces: manual (only when you report), auto (on console/page errors), or both."
+        },
+        "devHealer.browserGroupWindowMs": {
+          "type": "number",
+          "default": 1500,
+          "description": "In auto/both mode, group similar browser events arriving within this window into a single Fix/Ignore prompt."
+        },
+        "devHealer.browserAutoRequireGestureMs": {
+          "type": "number",
+          "default": 8000,
+          "description": "In auto/both mode, only prompt for browser errors if a user gesture happened recently (prevents idle spam). 0 disables."
+        },
+        "devHealer.browserPromptOnAuthErrors": {
+          "type": "boolean",
+          "default": false,
+          "description": "In auto/both mode, allow Fix/Ignore prompts for repeated 401/403 \"Unauthorized\" console errors. Off by default because these are often environment/auth noise."
+        },
+        "devHealer.browserOcrOnManualReports": {
+          "type": "boolean",
+          "default": true,
+          "description": "On manual browser reports, run local Apple Vision OCR on captured screenshots and include extracted text in the fix prompt."
+        },
+        "devHealer.visionOcrCommand": {
+          "type": "string",
+          "default": "node tools/dev-healer-vision-ocr.mjs",
+          "description": "Command to OCR screenshots. Reads paths from args and prints JSON [{path, ok, text, error}]."
+        },
+        "devHealer.fixMaxRetries": {
+          "type": "number",
+          "default": 2,
+          "description": "Maximum additional attempts to auto-repair when Fix fails (e.g., git apply failures). 0 disables retries."
+        },
+        "devHealer.fixQueueEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Queue fixes instead of running them immediately. This prevents overlapping git apply/commit/push."
+        },
+        "devHealer.fixMaxAttemptsPerIssue": {
+          "type": "number",
+          "default": 3,
+          "description": "Maximum attempts for a single issue's full pipeline (patch/apply + checks + commit + push). After this, Dev Healer will ask for human-in-the-loop action."
+        },
+        "devHealer.fixUseWorktrees": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run fixes in an isolated git worktree/branch so you can keep working in your main workspace while Dev Healer runs."
+        },
+        "devHealer.fixBranchPrefix": {
+          "type": "string",
+          "default": "dev-healer/",
+          "description": "Branch prefix for Dev Healer worktree branches (branch name will be prefix + issue id)."
+        },
+        "devHealer.fixRemoteName": {
+          "type": "string",
+          "default": "origin",
+          "description": "Git remote name to push to."
+        },
+        "devHealer.fixAutoCommit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically git add/commit after a successful patch + checks."
+        },
+        "devHealer.fixAutoPush": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically push the Dev Healer branch after commit; the next queued fix will not start until push succeeds."
+        },
+        "devHealer.fixCommitMessageTemplate": {
+          "type": "string",
+          "default": "Dev Healer: {title} ({id})",
+          "description": "Commit message template. Supported tokens: {id}, {title}, {sig}."
+        },
+        "devHealer.fixCleanupWorktrees": {
+          "type": "boolean",
+          "default": true,
+          "description": "After a fix finishes (success or failure), automatically remove the issue worktree under .dev-healer/worktrees/ to prevent tens-of-thousands of duplicated files from accumulating."
+        },
+        "devHealer.fixWorktreeRetainOnSuccess": {
+          "type": "number",
+          "default": 0,
+          "description": "How many worktrees to retain after a successful fix. Default 0 (delete immediately)."
+        },
+        "devHealer.fixWorktreeRetainOnFailure": {
+          "type": "number",
+          "default": 2,
+          "description": "How many (most recent) failed issue worktrees to retain for debugging. Default 2."
+        },
+        "devHealer.fixPostFixCommands": {
+          "type": "array",
+          "default": [
+            "npm run lint",
+            "npm run format:check",
+            "npm run build"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Commands to run after applying the patch and before committing/pushing (e.g. lint/format/build/tests). Any failure is fed back into the retry loop."
+        },
+        "devHealer.fixShowProgress": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a status/progress indicator while Dev Healer is generating/applying patches."
+        },
+        "devHealer.fixRevealOutputOnStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically reveal the Dev Healer Fix output channel when a fix starts."
+        },
+        "devHealer.fixOpenTailTerminal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Open a terminal that tails the current fix log in real time while a fix is running."
+        },
+        "devHealer.fixAgentExplainMode": {
+          "type": "string",
+          "default": "thinking",
+          "enum": [
+            "off",
+            "summary",
+            "thinking"
+          ],
+          "description": "Controls pre-diff agent output. 'summary' is a short operator summary. 'thinking' asks the agent to include concise step-by-step reasoning (more tokens). Saved to .dev-healer/agent-notes/<issueId>.txt."
+        },
+        "devHealer.fixAgentStreamPartial": {
+          "type": "boolean",
+          "default": false,
+          "description": "Stream Cursor Agent partial output into Dev Healer Fix output/log while generating the patch. Note: streaming can cause an extra (slower) second run if the Cursor CLI does not include the final edits JSON in stream output."
+        },
+        "devHealer.fixAgentThinkingMaxChars": {
+          "type": "number",
+          "default": 1500,
+          "description": "When fixAgentExplainMode is 'thinking', cap the agent's pre-diff reasoning length (approx chars). Lower = fewer tokens."
+        },
+        "devHealer.fixAgentStreamMaxChars": {
+          "type": "number",
+          "default": 20000,
+          "description": "Cap how much partial output is streamed into the Fix output before the diff begins (prevents flooding the output channel)."
+        },
+        "devHealer.fixAgentHeartbeat": {
+          "type": "boolean",
+          "default": false,
+          "description": "Emit periodic CLI heartbeats into the Fix output/log when Cursor Agent is quiet. Off by default to avoid spam; VS Code progress still updates."
+        },
+        "devHealer.fixPostFixCommandsAllowlist": {
+          "type": "array",
+          "default": [
+            "npm run lint",
+            "npm run format:check",
+            "npm run build"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional allowlist for post-fix commands. When non-empty, Dev Healer will only run post-fix commands that exactly match an allowlisted entry."
+        },
+        "devHealer.fixCherryPickToWorkspaceOnSuccess": {
+          "type": "boolean",
+          "default": true,
+          "description": "After a successful fix run in a worktree, attempt to apply the fix commit back onto your main workspace. Behavior when you have local changes is controlled by devHealer.fixCherryPickStrategy. Note: this step is best-effort; failures do not retry the fix run."
+        },
+        "devHealer.fixCherryPickStrategy": {
+          "type": "string",
+          "default": "stashAndPop",
+          "enum": [
+            "stashAndPop",
+            "skipIfDirty",
+            "newBranch",
+            "off"
+          ],
+          "description": "How Dev Healer applies a successful worktree fix commit back to your main workspace when you have local changes. stashAndPop (default): git stash -u, git cherry-pick, git stash pop. skipIfDirty: skip applying if workspace is dirty. newBranch: create a new local branch, cherry-pick there, then return to your current branch and restore your changes. off: never apply back to workspace."
+        },
+        "devHealer.browserAutoReloadOnFixSuccess": {
+          "type": "boolean",
+          "default": true,
+          "description": "After a successful fix that is applied to your main workspace, send a reload command to the watched Playwright browser."
+        }
+      }
+    }
+  }
+}
