@@ -1,0 +1,11 @@
+{
+  "files": [
+    "policy-files.json",
+    "AGENTS.md",
+    "docs/DEPENDENCIES.md",
+    "scripts/policy-check.mjs",
+    "scripts/policy-propose.mjs",
+    ".github/workflows/policy-check.yml",
+    ".github/workflows/policy-propose.yml"
+  ]
+}
