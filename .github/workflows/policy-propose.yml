@@ -1,0 +1,35 @@
+name: Policy Propose
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'policy-files.json'
+      - 'AGENTS.md'
+      - 'docs/DEPENDENCIES.md'
+      - 'scripts/policy-check.mjs'
+      - 'scripts/policy-propose.mjs'
+      - '.github/workflows/policy-check.yml'
+      - '.github/workflows/policy-propose.yml'
+
+jobs:
+  propose:
+    if: github.repository != 'baerautotech/policy-pack'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Propose policy update
+        env:
+          POLICY_BOT_TOKEN: ${{ secrets.POLICY_BOT_TOKEN }}
+          POLICY_ORG: baerautotech
+          POLICY_PACK_REPO: baerautotech/policy-pack
+        run: node scripts/policy-propose.mjs
