@@ -12,6 +12,11 @@ on:
       - '.github/workflows/policy-check.yml'
       - '.github/workflows/policy-propose.yml'
 
+env:
+  POLICY_BOT_TOKEN: ${{ secrets.POLICY_BOT_TOKEN }}
+  POLICY_ORG: baerautotech
+  POLICY_PACK_REPO: baerautotech/policy-pack
+
 jobs:
   propose:
     if: github.repository != 'baerautotech/policy-pack'
@@ -28,8 +33,5 @@ jobs:
           node-version: 'lts/*'
 
       - name: Propose policy update
-        env:
-          POLICY_BOT_TOKEN: ${{ secrets.POLICY_BOT_TOKEN }}
-          POLICY_ORG: baerautotech
-          POLICY_PACK_REPO: baerautotech/policy-pack
+        if: env.POLICY_BOT_TOKEN != ''
         run: node scripts/policy-propose.mjs
