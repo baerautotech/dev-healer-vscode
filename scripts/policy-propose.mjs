@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -30,14 +30,17 @@ if (!existsSync(manifestPath)) {
 const policyFiles = JSON.parse(readFileSync(manifestPath, 'utf8')).files;
 const repoName = process.env.GITHUB_REPOSITORY ?? 'unknown-repo';
 const branchName = `policy-propose/${repoName.replace('/', '-')}-${Date.now()}`;
-const tempDir = mkdtempSync(path.join(tmpdir(), 'policy-propose-'));
+const tempRoot = mkdtempSync(path.join(tmpdir(), 'policy-propose-'));
+const tempDir = path.join(tempRoot, 'repo');
+mkdirSync(tempDir, { recursive: true });
+const askPassPath = path.join(tempRoot, 'askpass.sh');
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     stdio: options.capture ? 'pipe' : 'inherit',
     encoding: 'utf8',
     cwd: options.cwd,
-    env: options.env,
+    env: { ...process.env, ...(options.env ?? {}) },
   });
   if (result.status !== 0) {
     const details = options.capture ? result.stderr : '';
@@ -89,10 +92,29 @@ async function createPullRequest(branch) {
 }
 
 try {
-  const tokenEncoded = encodeURIComponent(TOKEN);
-  const cloneUrl = `https://x-access-token:${tokenEncoded}@github.com/${POLICY_PACK_REPO}.git`;
+  // Use a GIT_ASKPASS helper to avoid embedding the token in clone/push URLs.
+  // This reduces the risk of leaking secrets into CI logs.
+  writeFileSync(
+    askPassPath,
+    `#!/usr/bin/env sh
+case "$1" in
+  *Username*) echo "x-access-token" ;;
+  *Password*) echo "$POLICY_GIT_TOKEN" ;;
+  *) echo "" ;;
+esac
+`,
+    { mode: 0o700 },
+  );
+  chmodSync(askPassPath, 0o700);
 
-  run('git', ['clone', '--depth', '1', cloneUrl, tempDir]);
+  const gitEnv = {
+    POLICY_GIT_TOKEN: TOKEN,
+    GIT_ASKPASS: askPassPath,
+    GIT_TERMINAL_PROMPT: '0',
+  };
+
+  const cloneUrl = `https://github.com/${POLICY_PACK_REPO}.git`;
+  run('git', ['clone', '--depth', '1', cloneUrl, tempDir], { env: gitEnv });
   run('git', ['checkout', BASE_BRANCH], { cwd: tempDir });
   run('git', ['config', 'user.name', 'policy-bot'], { cwd: tempDir });
   run('git', ['config', 'user.email', 'policy-bot@users.noreply.github.com'], { cwd: tempDir });
@@ -108,9 +130,9 @@ try {
   run('git', ['checkout', '-b', branchName], { cwd: tempDir });
   run('git', ['add', ...policyFiles], { cwd: tempDir });
   run('git', ['commit', '-m', `Propose policy update from ${repoName}`], { cwd: tempDir });
-  run('git', ['push', 'origin', branchName], { cwd: tempDir });
+  run('git', ['push', 'origin', branchName], { cwd: tempDir, env: gitEnv });
 
   await createPullRequest(branchName);
 } finally {
-  rmSync(tempDir, { recursive: true, force: true });
+  rmSync(tempRoot, { recursive: true, force: true });
 }
