@@ -3,6 +3,7 @@
     "policy-files.json",
     "AGENTS.md",
     "docs/DEPENDENCIES.md",
+    "scripts/policy-app-token.mjs",
     "scripts/policy-check.mjs",
     "scripts/policy-propose.mjs",
     ".github/workflows/policy-check.yml",
