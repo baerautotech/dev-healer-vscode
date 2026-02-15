@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+env:
+  POLICY_ORG: baerautotech
+  POLICY_PACK_REPO: baerautotech/policy-pack
+
 jobs:
   policy-check:
     runs-on: ubuntu-latest
@@ -19,10 +23,38 @@ jobs:
         with:
           node-version: 'lts/*'
 
-      - name: Policy check
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+      - name: Create policy bot GitHub App token
+        id: policy_app_token
+        if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && vars.POLICY_BOT_APP_ID != '' }}
+        continue-on-error: true
         env:
-          POLICY_BOT_TOKEN: ${{ secrets.POLICY_BOT_TOKEN }}
-          POLICY_ORG: baerautotech
-          POLICY_PACK_REPO: baerautotech/policy-pack
+          POLICY_BOT_APP_ID: ${{ vars.POLICY_BOT_APP_ID }}
+          POLICY_BOT_APP_PRIVATE_KEY: ${{ secrets.POLICY_BOT_APP_PRIVATE_KEY }}
+          POLICY_BOT_APP_OWNER: ${{ github.repository_owner }}
+          POLICY_BOT_APP_PERMISSIONS: '{"contents":"read"}'
+        run: node scripts/policy-app-token.mjs
+
+      - name: Select policy bot token
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TOKEN="${{ steps.policy_app_token.outputs.token }}"
+          if [ -z "${TOKEN}" ]; then
+            TOKEN="${{ secrets.POLICY_BOT_TOKEN }}"
+          fi
+
+          if [ -z "${TOKEN}" ]; then
+            echo "Missing policy bot credentials. Set either:" >&2
+            echo "- org/repo vars+secrets: POLICY_BOT_APP_ID + POLICY_BOT_APP_PRIVATE_KEY (preferred), or" >&2
+            echo "- secrets: POLICY_BOT_TOKEN (legacy)" >&2
+            exit 1
+          fi
+
+          echo "::add-mask::${TOKEN}"
+          echo "POLICY_BOT_TOKEN=${TOKEN}" >> "${GITHUB_ENV}"
+
+      - name: Policy check
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
         run: node scripts/policy-check.mjs
