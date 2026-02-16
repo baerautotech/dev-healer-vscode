@@ -7,10 +7,15 @@ on:
       - 'policy-files.json'
       - 'AGENTS.md'
       - 'docs/DEPENDENCIES.md'
+      - 'scripts/policy-app-token.mjs'
       - 'scripts/policy-check.mjs'
       - 'scripts/policy-propose.mjs'
       - '.github/workflows/policy-check.yml'
       - '.github/workflows/policy-propose.yml'
+
+env:
+  POLICY_ORG: baerautotech
+  POLICY_PACK_REPO: baerautotech/policy-pack
 
 jobs:
   propose:
@@ -27,9 +32,41 @@ jobs:
         with:
           node-version: 'lts/*'
 
-      - name: Propose policy update
+      - name: Create policy bot GitHub App token
+        id: policy_app_token
+        if: ${{ vars.POLICY_BOT_APP_ID != '' }}
+        continue-on-error: true
         env:
-          POLICY_BOT_TOKEN: ${{ secrets.POLICY_BOT_TOKEN }}
-          POLICY_ORG: baerautotech
-          POLICY_PACK_REPO: baerautotech/policy-pack
+          POLICY_BOT_APP_ID: ${{ vars.POLICY_BOT_APP_ID }}
+          POLICY_BOT_APP_PRIVATE_KEY: ${{ secrets.POLICY_BOT_APP_PRIVATE_KEY }}
+          POLICY_BOT_APP_OWNER: ${{ github.repository_owner }}
+          POLICY_BOT_APP_PERMISSIONS: '{"contents":"write","pull_requests":"write"}'
+        run: node scripts/policy-app-token.mjs
+
+      - name: Select policy bot token
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TOKEN="${{ steps.policy_app_token.outputs.token }}"
+          TOKEN_SOURCE="github_app"
+          if [ -z "${TOKEN}" ]; then
+            TOKEN_SOURCE="legacy_pat"
+            TOKEN="${{ secrets.POLICY_BOT_TOKEN }}"
+          fi
+
+          echo "Policy bot token source: ${TOKEN_SOURCE}" >&2
+          echo "POLICY_BOT_TOKEN_SOURCE=${TOKEN_SOURCE}" >> "${GITHUB_ENV}"
+
+          if [ -z "${TOKEN}" ]; then
+            echo "Missing policy bot credentials. Set either:" >&2
+            echo "- org/repo vars+secrets: POLICY_BOT_APP_ID + POLICY_BOT_APP_PRIVATE_KEY (preferred), or" >&2
+            echo "- secrets: POLICY_BOT_TOKEN (legacy)" >&2
+            exit 1
+          fi
+
+          echo "::add-mask::${TOKEN}"
+          echo "POLICY_BOT_TOKEN=${TOKEN}" >> "${GITHUB_ENV}"
+
+      - name: Propose policy update
         run: node scripts/policy-propose.mjs
