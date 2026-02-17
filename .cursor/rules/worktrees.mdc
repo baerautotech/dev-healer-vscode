@@ -1,0 +1,71 @@
+---
+description: Agent policy for branch/worktree isolation + cleanup (prevents cross-branch contamination).
+globs: "**/*"
+alwaysApply: true
+---
+
+# Agent Worktree + Branch Isolation Policy (Cerebral)
+
+Goal: **keep each work stream isolated** so agents do not accidentally edit/commit on the wrong branch, and so leftover files (especially untracked `src/**/*.ts`) don't break other work.
+
+## Hard constraints
+
+- **No `.worktrees/` directory in repo root** (guardrail will fail).
+- **Avoid worktrees unless explicitly approved** by the user for the current session.
+- When worktrees are approved:
+  - **Never create them inside the repo root**.
+  - Prefer the shared container folder: `/Users/bbaer/Development/Cerebralmockup-worktrees/<branch-slug>/`.
+
+## Default operating mode (when working on a feature branch)
+
+Before editing **any** file:
+
+- Verify the current worktree is on the intended branch:
+  - `git rev-parse --abbrev-ref HEAD`
+- Verify there are no local changes that belong to other work:
+  - `git status --porcelain=v1`
+
+If not on the intended branch, **stop and ask for approval** before:
+- checkout/switching branches
+- resetting
+- stashing
+- committing
+- pushing
+
+## When the user wants a new branch for a new work session (approved worktrees)
+
+Create a dedicated worktree folder for that branch (outside repo root). Recommended commands:
+
+```bash
+# from the main repo root
+mkdir -p /Users/bbaer/Development/Cerebralmockup-worktrees
+git worktree add /Users/bbaer/Development/Cerebralmockup-worktrees/<branch-slug> <branch-name>
+```
+
+Then **open the worktree folder in a new Cursor window** for that agent/session.
+
+Notes:
+- Worktree directories are **workspace-scoped** in Cursor (Cursor is folder-aware, not branch-aware).
+- Avoid sharing a single worktree folder across multiple agents.
+
+## Cleanup policy (end of a branch/project)
+
+When the user confirms the branch/project is complete (e.g., PR merged), the agent should:
+
+1. Ask for approval to perform cleanup git operations.
+2. Remove the dedicated worktree directory:
+
+```bash
+git worktree remove /Users/bbaer/Development/Cerebralmockup-worktrees/<branch-slug> --force
+git worktree prune
+```
+
+3. If explicitly requested by the user, delete the branch (local and/or remote).
+
+## Safety: untracked TS files
+
+Untracked `.ts/.tsx` under `src/` still affect `tsc`/typecheck.
+
+- If another agent's untracked files block verification in this worktree, do **not** commit them.
+- Prefer moving them temporarily outside `src/` (with HIL approval), run verification, then restore them, or ask the owner agent to relocate them.
+

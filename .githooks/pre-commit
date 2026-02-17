@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Repo-managed git hook (core.hooksPath=.githooks)
+# Delegates to pre-commit so hook behavior is repo-tracked and consistent.
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$ROOT"
+
+if command -v pre-commit >/dev/null 2>&1; then
+  pre-commit run --hook-stage pre-commit
+else
+  echo "⚠️  pre-commit not found; skipping pre-commit hook checks." >&2
+fi
