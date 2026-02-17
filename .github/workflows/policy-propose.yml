@@ -2,7 +2,7 @@ name: Policy Propose
 
 on:
   push:
-    branches: [main]
+    branches: [staging, main]
     paths:
       - 'policy-files.json'
       - 'AGENTS.md'
