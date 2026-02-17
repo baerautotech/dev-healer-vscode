@@ -48,6 +48,8 @@ creative and inventive UI/UX that stays minimal and purposeful.
 - Never commit directly to `main` or `staging`.
 - Push branch → open PR → merge to **`staging`** (after all pre-checks / CI pass).
 - After merge: delete the remote branch and delete the local branch.
+  - Repo setting: ensure `delete_branch_on_merge=true` (GitHub “Automatically delete head branches”) to prevent remote branch buildup.
+  - CLI merges: prefer `gh pr merge --auto --squash --delete-branch` (or `--merge`/`--rebase` as appropriate).
 
 ### Pre-checks (required before merging to staging)
 
