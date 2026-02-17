@@ -58,8 +58,45 @@ function cfg() {
   };
 }
 
+let sessionRoot = null;
+
+function activeEditorWorkspaceRoot() {
+  try {
+    const uri = vscode.window.activeTextEditor?.document?.uri;
+    if (!uri) return null;
+    const folder = vscode.workspace.getWorkspaceFolder(uri);
+    return folder?.uri?.fsPath || null;
+  } catch {
+    return null;
+  }
+}
+
+function pickWorkspaceRoot() {
+  const folders = vscode.workspace.workspaceFolders || [];
+  if (!folders.length) return null;
+  const roots = folders.map((f) => f?.uri?.fsPath).filter(Boolean);
+  if (!roots.length) return null;
+
+  // Prefer the repo that contains the Dev Healer tooling scripts (this is almost always the *target* app repo).
+  const withTools = roots.find((r) => fs.existsSync(path.join(r, 'tools', 'cursor-agent-patch.mjs')));
+  if (withTools) return withTools;
+
+  // If the user is editing a file, fall back to that folder (useful in multi-root workspaces).
+  const active = activeEditorWorkspaceRoot();
+  if (active) return active;
+
+  // Prefer a typical app repo shape (package.json + src).
+  const withAppShape = roots.find((r) => fs.existsSync(path.join(r, 'package.json')) && fs.existsSync(path.join(r, 'src')));
+  if (withAppShape) return withAppShape;
+
+  return roots[0];
+}
+
 function workspaceRoot() {
-  return vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
+  if (sessionRoot) return sessionRoot;
+  const picked = pickWorkspaceRoot() || vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath || null;
+  if (picked) sessionRoot = picked;
+  return picked;
 }
 
 function isSafeChildPath(root, relPath) {
