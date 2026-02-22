@@ -3,7 +3,7 @@ name: Policy Check
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, staging]
 
 env:
   POLICY_ORG: baerautotech
