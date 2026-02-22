@@ -6,10 +6,12 @@ on:
     paths:
       - 'policy-files.json'
       - 'AGENTS.md'
+      - '.cursor/**'
       - 'docs/DEPENDENCIES.md'
       - 'scripts/policy-app-token.mjs'
       - 'scripts/policy-check.mjs'
       - 'scripts/policy-propose.mjs'
+      - 'scripts/tdd-modification-hook.sh'
       - '.github/workflows/policy-check.yml'
       - '.github/workflows/policy-propose.yml'
 
@@ -40,7 +42,7 @@ jobs:
           POLICY_BOT_APP_ID: ${{ vars.POLICY_BOT_APP_ID }}
           POLICY_BOT_APP_PRIVATE_KEY: ${{ secrets.POLICY_BOT_APP_PRIVATE_KEY }}
           POLICY_BOT_APP_OWNER: ${{ github.repository_owner }}
-          POLICY_BOT_APP_PERMISSIONS: '{"contents":"write","pull_requests":"write"}'
+          POLICY_BOT_APP_PERMISSIONS: '{"contents":"write","pull_requests":"write","workflows":"write"}'
         run: node scripts/policy-app-token.mjs
 
       - name: Select policy bot token

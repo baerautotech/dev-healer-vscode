@@ -1,0 +1,33 @@
+---
+description: Time-anchor decisions + discover policy-pack first
+alwaysApply: true
+---
+
+# Time-Anchored Decision Making (Required)
+
+Before making any "best practice" or "current direction" decision, anchor on the real current date.
+
+1. Run `date -u` and `date` using the Shell tool.
+2. State the results explicitly in the conversation as:
+   - `Decision baseline date (UTC): <output of date -u>`
+   - `Decision baseline date (local): <output of date>`
+
+Do not rely on vague phrases like "as of today" without first grounding "today" with `date`.
+
+# Policy-Pack Awareness (Org Sync)
+
+If the repo contains `policy-files.json`, this repo has opted into org-level policy sync.
+
+Required behavior:
+- Read `policy-files.json` and treat its listed files as policy-managed.
+- Do not hand-wave or reinvent org policy; follow the policy-managed files as the source of truth.
+- If a policy-managed file should change, propose the change through the policy-pack workflow (do not drift locally).
+
+# Decision Tree (General Guidance)
+
+When multiple viable implementation paths exist:
+
+1. Prefer the path with the strongest compliance/control alignment (auditability, least privilege, clear ownership, and documented operational posture).
+2. Prefer the path that matches the current and expected future direction of the platform (avoid dead-ends and vendor/feature lock-in when reasonable).
+3. Prefer reversible choices (safe rollout/rollback) and lower long-term operational risk over short-term speed.
+4. If the trade-offs depend on missing constraints (compliance target, threat model, platform roadmap), stop and ask the user rather than guessing.

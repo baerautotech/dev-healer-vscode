@@ -2,10 +2,15 @@
   "files": [
     "policy-files.json",
     "AGENTS.md",
+    ".cursor/agents.md",
+    ".cursor/rules/policy-pack-and-decision-making.mdc",
+    ".cursor/testing-standard.md",
     "docs/DEPENDENCIES.md",
+    "docs/security/policy-bot-github-app.md",
     "scripts/policy-app-token.mjs",
     "scripts/policy-check.mjs",
     "scripts/policy-propose.mjs",
+    "scripts/tdd-modification-hook.sh",
     ".github/workflows/policy-check.yml",
     ".github/workflows/policy-propose.yml"
   ]
