@@ -1,11 +1,30 @@
 # Agents Operating Rules — All Repositories
 
 ## Purpose
+
 These rules exist because of repeated failures: false completion claims, theater code, incomplete implementations declared as "done", and plans executed at 10% then marked 100%. These rules are non-negotiable.
 
 ---
 
-# PART 0: HARD GATES (v5 — added after REPEATED non-compliance)
+## Workflow orchestration (execution model)
+
+These rules describe how to run work. They do not loosen any evidence gate below.
+
+- Plan mode default: Enter plan mode for any non-trivial task (3+ steps or architectural decisions).
+- Stop and re-plan: If verification fails or scope changes, stop immediately and re-plan; do not keep pushing.
+- Subagent strategy: Use subagents liberally for research/exploration and parallel analysis; keep one tack per subagent.
+- Verification before done: Never claim completion without pasted evidence (command output, curl response body, screenshots).
+- Demand elegance (balanced): For non-trivial changes, pause and ask if there is a simpler/more elegant design; skip for obvious fixes.
+- Autonomous bug fixing: For bug reports, reproduce via logs/errors/failing tests, fix app code, and prove correctness with evidence.
+
+## Task management (repo docs)
+
+- Plan first: Write a checkable plan to `tasks/todo.md` (acceptance criteria + verification per item).
+- Track progress: Mark items complete as you go; keep only one task in progress at a time (Rule 0a still applies).
+- Document results: Add a short review/results section to `tasks/todo.md` (what changed, how verified, commands run).
+- Capture lessons: After any correction from the user, update `tasks/lessons.md` with the pattern and a repeat-prevention rule.
+
+## Part 0: Hard Gates (v5 — added after repeated non-compliance)
 
 These gates override everything. They cannot be skipped, deferred, or rationalized away.
 They exist because rules, mechanisms, and checklists were all ignored when the agent
@@ -44,6 +63,7 @@ INVALID** and must be re-done from scratch with proper verification.
 
 You may NOT have more than **ONE task in progress** at a time.
 You may NOT start task N+1 until task N has:
+
 1. A completed **Pre-Flight Checklist** with **PASS verdict**
 2. **Pasted evidence** (curl output, test output, or screenshot)
 
@@ -65,11 +85,13 @@ for forward progress, not a checkbox to fill in later.
 ## Rule 0b: Playwright Screenshot Gate — Required for ANY UI Change
 
 Any task that modifies a `.tsx` file MUST include:
+
 1. Playwright screenshot of the affected page(s) on **desktop** (1440x900)
 2. Playwright screenshot of the affected page(s) on **mobile** (390x844)
 3. Screenshots must be **captured and viewable** (saved to test-results/)
 
 If Playwright cannot run (e.g., browser not installed), you MUST:
+
 1. State explicitly: "I could not capture screenshots because [reason]"
 2. Mark the task as **NOT VERIFIED** in the Pre-Flight Checklist
 3. Do NOT claim the task is done
@@ -81,6 +103,7 @@ If Playwright cannot run (e.g., browser not installed), you MUST:
 ## Rule 0c: Anti-Rationalization Clause
 
 You are NOT allowed to rationalize skipping any Rule 0 gate with:
+
 - "This is a small change, it doesn't need verification"
 - "I'll verify everything at the end"
 - "The user said to proceed quickly"
@@ -95,13 +118,14 @@ hard stop for user check-in.
 
 ---
 
-# PART 1: RULES
+## Part 1: Rules
 
 ## Rule 1: No False Completion Claims
 
 **NEVER say "done", "complete", "all green", or "deployed" unless you have VERIFIED evidence.**
 
 Evidence requirements by type:
+
 - **Backend endpoint**: HTTP response with status code AND response body shown in output
 - **Frontend page/component**: Playwright test passing OR screenshot proving it works
 - **Security control**: `curl -I` header dump showing the header exists on the LIVE service
@@ -530,7 +554,7 @@ TESTS: 12 total
   - Tier 1 (render): 3
   - Tier 2 (integration): 7
   - Tier 3 (e2e workflow): 2
-  
+
 COVERAGE:
   - API calls verified: 9/12 endpoints
   - Buttons clicked: 7/10

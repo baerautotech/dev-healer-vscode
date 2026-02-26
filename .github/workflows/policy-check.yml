@@ -18,14 +18,106 @@ jobs:
       - name: Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # actions/checkout@v4
 
+      - name: Decide whether to run (skip irrelevant changes)
+        id: should_run
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork || false }}
+        run: |
+          set -euo pipefail
+
+          run_policy_check="false"
+          changed=""
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            base_sha="${PR_BASE_SHA:-}"
+            if [[ -z "${base_sha}" ]]; then
+              run_policy_check="true"
+            else
+              git fetch origin "${base_sha}" --depth=1 >/dev/null 2>&1 || true
+              set +e
+              changed="$(git diff --name-only "${base_sha}..HEAD" 2>/dev/null)"
+              rc="$?"
+              set -e
+              if [[ "${rc}" != "0" ]]; then
+                run_policy_check="true"
+              fi
+            fi
+          else
+            before="${BEFORE_SHA:-}"
+            after="${AFTER_SHA:-}"
+            if [[ -z "${before}" || "${before}" =~ ^0+$ ]]; then
+              base_ref="origin/staging"
+              git fetch origin staging --depth=50 >/dev/null 2>&1 || true
+              if ! git rev-parse --verify "${base_ref}" >/dev/null 2>&1; then
+                base_ref="origin/main"
+                git fetch origin main --depth=50 >/dev/null 2>&1 || true
+              fi
+              set +e
+              changed="$(git diff --name-only "${base_ref}..${after}" 2>/dev/null)"
+              rc="$?"
+              set -e
+              if [[ "${rc}" != "0" ]]; then
+                run_policy_check="true"
+              fi
+            else
+              git fetch origin "${before}" --depth=1 >/dev/null 2>&1 || true
+              set +e
+              changed="$(git diff --name-only "${before}..${after}" 2>/dev/null)"
+              rc="$?"
+              set -e
+              if [[ "${rc}" != "0" ]]; then
+                run_policy_check="true"
+              fi
+            fi
+          fi
+
+          if [[ "${run_policy_check}" != "true" ]]; then
+            while IFS= read -r f; do
+              [[ -z "${f}" ]] && continue
+              case "${f}" in
+                policy-files.json|\
+                .markdownlintignore|\
+                AGENTS.md|\
+                .cursor/agents.md|\
+                .cursor/testing-standard.md|\
+                .cursor/rules/policy-pack-and-decision-making.mdc|\
+                docs/DEPENDENCIES.md|\
+                docs/security/policy-bot-github-app.md|\
+                scripts/policy-app-token.mjs|\
+                scripts/policy-check.mjs|\
+                scripts/policy-propose.mjs|\
+                scripts/tdd-modification-hook.sh|\
+                .github/workflows/policy-check.yml|\
+                .github/workflows/policy-propose.yml|\
+                .github/workflows/policy-check-status.yml)
+                  run_policy_check="true"
+                  break
+                  ;;
+              esac
+            done <<< "${changed:-}"
+          fi
+
+          fork_policy_violation="false"
+          if [[ "${IS_FORK}" == "true" && "${run_policy_check}" == "true" ]]; then
+            fork_policy_violation="true"
+          fi
+
+          echo "run_policy_check=${run_policy_check}" >> "${GITHUB_OUTPUT}"
+          echo "fork_policy_violation=${fork_policy_violation}" >> "${GITHUB_OUTPUT}"
+
       - name: Setup Node.js
+        if: steps.should_run.outputs.run_policy_check == 'true' && steps.should_run.outputs.fork_policy_violation != 'true'
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # actions/setup-node@v4
         with:
           node-version: 'lts/*'
 
       - name: Create policy bot GitHub App token
         id: policy_app_token
-        if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) && vars.POLICY_BOT_APP_ID != '' }}
+        if: steps.should_run.outputs.run_policy_check == 'true' && steps.should_run.outputs.fork_policy_violation != 'true' && vars.POLICY_BOT_APP_ID != ''
         continue-on-error: true
         env:
           POLICY_BOT_APP_ID: ${{ vars.POLICY_BOT_APP_ID }}
@@ -35,13 +127,30 @@ jobs:
         run: node scripts/policy-app-token.mjs
 
       - name: Select policy bot token
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        if: steps.should_run.outputs.run_policy_check == 'true' && steps.should_run.outputs.fork_policy_violation != 'true'
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
 
           TOKEN="${{ steps.policy_app_token.outputs.token }}"
           TOKEN_SOURCE="github_app"
+
+          # If the GitHub App token cannot read policy-pack, fall back to legacy PAT.
+          if [ -n "${TOKEN}" ]; then
+            status="$(
+              curl -sS -o /dev/null -w "%{http_code}" \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Accept: application/vnd.github.raw" \
+                "https://api.github.com/repos/${POLICY_PACK_REPO}/contents/policy-files.json?ref=main" \
+                || echo "000"
+            )"
+            if [ "${status}" != "200" ]; then
+              echo "Policy bot GitHub App token cannot read ${POLICY_PACK_REPO} (HTTP ${status}); falling back to PAT." >&2
+              TOKEN=""
+            fi
+          fi
+
           if [ -z "${TOKEN}" ]; then
             TOKEN_SOURCE="legacy_pat"
             TOKEN="${{ secrets.POLICY_BOT_TOKEN }}"
@@ -60,6 +169,16 @@ jobs:
           echo "::add-mask::${TOKEN}"
           echo "POLICY_BOT_TOKEN=${TOKEN}" >> "${GITHUB_ENV}"
 
+      - name: Skip policy check (no policy file changes)
+        if: steps.should_run.outputs.run_policy_check != 'true'
+        run: echo "Policy-managed files unchanged; skipping policy-pack parity check."
+
+      - name: Fail on fork policy change (requires trusted credentials)
+        if: steps.should_run.outputs.fork_policy_violation == 'true'
+        run: |
+          echo "Policy-managed files changed in a forked PR; cannot validate policy-pack parity with repo secrets." >&2
+          exit 1
+
       - name: Policy check
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        if: steps.should_run.outputs.run_policy_check == 'true' && steps.should_run.outputs.fork_policy_violation != 'true'
         run: node scripts/policy-check.mjs

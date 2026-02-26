@@ -10,6 +10,8 @@ const POLICY_ORG = process.env.POLICY_ORG ?? 'baerautotech';
 const POLICY_PACK_REPO = process.env.POLICY_PACK_REPO ?? `${POLICY_ORG}/policy-pack`;
 const BASE_BRANCH = process.env.POLICY_BASE_BRANCH ?? 'main';
 const TOKEN = process.env.POLICY_BOT_TOKEN ?? process.env.GH_TOKEN;
+const AGENTS_FILE = 'AGENTS.md';
+const AGENTS_REPO_SPECIFIC_ANCHOR = 'content above this section).';
 
 if (!TOKEN) {
   console.error('POLICY_BOT_TOKEN is required to propose policy updates.');
@@ -49,12 +51,54 @@ function run(command, args, options = {}) {
   return result.stdout ?? '';
 }
 
+function normalizePolicyText(value) {
+  return String(value ?? '').replace(/\r\n/g, '\n');
+}
+
+function splitAgentsManagedAndSuffix(localContents, canonicalManagedContents) {
+  const local = normalizePolicyText(localContents);
+  const canonical = normalizePolicyText(canonicalManagedContents);
+
+  if (canonical && local.startsWith(canonical)) {
+    return { managed: canonical, suffix: local.slice(canonical.length) };
+  }
+
+  const canonicalTrimmed = canonical.endsWith('\n') ? canonical.slice(0, -1) : canonical;
+  if (canonicalTrimmed && local.startsWith(canonicalTrimmed)) {
+    const remainder = local.slice(canonicalTrimmed.length);
+    const suffix = remainder && !remainder.startsWith('\n') ? `\n${remainder}` : remainder;
+    return { managed: canonical, suffix };
+  }
+
+  const anchorIndex = local.indexOf(AGENTS_REPO_SPECIFIC_ANCHOR);
+  if (anchorIndex === -1) {
+    return { managed: local, suffix: '' };
+  }
+
+  const lineEnd = local.indexOf('\n', anchorIndex);
+  if (lineEnd === -1) {
+    return { managed: local, suffix: '' };
+  }
+
+  return {
+    managed: local.slice(0, lineEnd + 1),
+    suffix: local.slice(lineEnd + 1),
+  };
+}
+
 function copyPolicyFiles(targetDir) {
   for (const file of policyFiles) {
     const source = path.join(ROOT, file);
     if (!existsSync(source)) continue;
     const destination = path.join(targetDir, file);
     mkdirSync(path.dirname(destination), { recursive: true });
+    if (file === AGENTS_FILE) {
+      const localAgents = readFileSync(source, 'utf8');
+      const canonicalAgents = existsSync(destination) ? readFileSync(destination, 'utf8') : '';
+      const { managed } = splitAgentsManagedAndSuffix(localAgents, canonicalAgents);
+      writeFileSync(destination, normalizePolicyText(managed));
+      continue;
+    }
     copyFileSync(source, destination);
   }
 }
