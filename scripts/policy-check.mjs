@@ -7,6 +7,8 @@ const POLICY_PACK_REPO = process.env.POLICY_PACK_REPO ?? `${POLICY_ORG}/policy-p
 const BASE_BRANCH = process.env.POLICY_BASE_BRANCH ?? 'main';
 const TOKEN = process.env.POLICY_BOT_TOKEN ?? process.env.GH_TOKEN;
 const CURRENT_REPO = process.env.GITHUB_REPOSITORY ?? '';
+const AGENTS_FILE = 'AGENTS.md';
+const AGENTS_REPO_SPECIFIC_ANCHOR = 'content above this section).';
 
 const manifestPath = path.join(ROOT, 'policy-files.json');
 if (!existsSync(manifestPath)) {
@@ -59,6 +61,42 @@ async function fetchPolicyFile(filePath) {
   return response.text();
 }
 
+function normalizePolicyText(value) {
+  return String(value ?? '').replace(/\r\n/g, '\n');
+}
+
+function splitAgentsManagedAndSuffix(localContents, canonicalManagedContents) {
+  const local = normalizePolicyText(localContents);
+  const canonical = normalizePolicyText(canonicalManagedContents);
+
+  if (canonical && local.startsWith(canonical)) {
+    return { managed: canonical, suffix: local.slice(canonical.length) };
+  }
+
+  // Tolerate local files that may omit the final trailing newline.
+  const canonicalTrimmed = canonical.endsWith('\n') ? canonical.slice(0, -1) : canonical;
+  if (canonicalTrimmed && local.startsWith(canonicalTrimmed)) {
+    const remainder = local.slice(canonicalTrimmed.length);
+    const suffix = remainder && !remainder.startsWith('\n') ? `\n${remainder}` : remainder;
+    return { managed: canonical, suffix };
+  }
+
+  const anchorIndex = local.indexOf(AGENTS_REPO_SPECIFIC_ANCHOR);
+  if (anchorIndex === -1) {
+    return { managed: local, suffix: '' };
+  }
+
+  const lineEnd = local.indexOf('\n', anchorIndex);
+  if (lineEnd === -1) {
+    return { managed: local, suffix: '' };
+  }
+
+  return {
+    managed: local.slice(0, lineEnd + 1),
+    suffix: local.slice(lineEnd + 1),
+  };
+}
+
 const mismatches = [];
 
 for (const file of policyFiles) {
@@ -69,7 +107,15 @@ for (const file of policyFiles) {
     mismatches.push(`${file} (missing in policy pack)`);
     continue;
   }
-  if (localContents !== policyContents) {
+  if (file === AGENTS_FILE) {
+    const { managed } = splitAgentsManagedAndSuffix(localContents ?? '', policyContents);
+    if (normalizePolicyText(managed) !== normalizePolicyText(policyContents)) {
+      mismatches.push(file);
+    }
+    continue;
+  }
+
+  if (normalizePolicyText(localContents ?? '') !== normalizePolicyText(policyContents)) {
     mismatches.push(file);
   }
 }

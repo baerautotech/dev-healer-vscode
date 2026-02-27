@@ -32,6 +32,28 @@ creative and inventive UI/UX that stays minimal and purposeful.
 11. Commit honesty: Commit messages must match actual changes.
 12. Research = execution: Cited patterns must be implemented, not aspirational.
 
+## Workflow orchestration
+
+- Plan mode default: Enter plan mode for any non-trivial task (3+ steps or architectural decisions).
+- Stop and re-plan: If something goes sideways (failed verification, unknowns, unexpected scope), stop and re-plan immediately.
+- Subagents: Use subagents to offload research/exploration and parallel analysis; keep one tack per subagent.
+- Verification before done: Never mark a task complete without evidence (tests, logs, curl output, screenshots where relevant).
+- Demand elegance (balanced): For non-trivial changes, pause and ask if there is a more elegant solution; do not over-engineer obvious fixes.
+- Autonomous bug fixing: When given a bug report, reproduce from logs/errors/failing tests, fix it, and present verification evidence without hand-holding.
+
+## Task management
+
+- Plan first: Write the plan to `tasks/todo.md` as checkable items (acceptance criteria + verification per item).
+- Verify the plan: Check in before starting implementation when the plan is non-trivial or has meaningful trade-offs.
+- Track progress: Mark items complete as you go; keep scope tight and avoid parallel in-flight tasks.
+- Document results: Add a short review/results section to `tasks/todo.md` (what changed, how verified, links/commands used).
+- Capture lessons: After any correction from the user, update `tasks/lessons.md` with the pattern and a repeat-prevention rule.
+
+## Self-improvement loop
+
+- Review `tasks/lessons.md` at session start for relevant patterns.
+- When corrected, write a concrete prevention rule (what to do differently next time) and apply it immediately in the current work.
+
 ## Decision-making rubric (time-anchored)
 
 When using phrases like "best practices", "cutting edge", or "current direction", agents must first anchor on the real current date by running `date -u` and `date` (Shell) and stating the outputs in the conversation.
@@ -107,10 +129,20 @@ This repo uses **GitHub Actions** and protected environments. In practice,
 - Get step-by-step logs (useful for smoke test output):
   - `gh api /repos/<org>/<repo>/actions/runs/<run_id>/logs` (zip)
 
-Tip: this environment may inject an invalid `GITHUB_TOKEN` env var that breaks
-`gh`. Prefer:
+Tip: Cursor Cloud injects a `GITHUB_TOKEN` that has limited permissions
+(contents-write only). This causes `gh pr create`, workflow dispatch, and
+other GitHub API calls to fail with “Resource not accessible by integration”.
 
-- `env -u GITHUB_TOKEN gh ...`
+Fix: use the `GH_PAT_TOKEN` secret (a full-scope PAT) instead:
+
+```bash
+export GH_TOKEN="${GH_PAT_TOKEN}"
+unset GITHUB_TOKEN
+gh auth status
+```
+
+This resolves PR creation, merge, and all other `gh` operations. The
+`GH_PAT_TOKEN` secret must be configured in Cursor Cloud secrets.
 
 ### Common failure modes (staging)
 
@@ -120,11 +152,6 @@ Tip: this environment may inject an invalid `GITHUB_TOKEN` env var that breaks
     optional if appropriate for staging rollout.
 - **Private service smoke tests**:
   - Unauthenticated `/health` should return **401/403** for private services.
-- **GitHub CLI permissions**:
-  - `git push` can work (contents write) while `gh pr create` / workflow
-    dispatch fails (missing PR/actions permissions). If `gh` returns
-    “Resource not accessible by integration”, use the GitHub UI or update the
-    token permissions.
 
 ## Product and UX standards
 
@@ -383,3 +410,32 @@ Enforcement points:
 - Linting, formatting, type checks, and tests pass.
 - Security requirements met; secrets handled correctly.
 - Documentation updated where behavior or usage changed.
+
+## Cursor Cloud specific instructions
+
+### GitHub CLI authentication
+
+Cursor Cloud injects a default `GITHUB_TOKEN` with limited permissions. Always
+override it with the org PAT at the start of every session:
+
+```bash
+export GH_TOKEN="${GH_PAT_TOKEN}"
+unset GITHUB_TOKEN
+```
+
+This enables `gh pr create`, `gh pr merge`, workflow dispatch, and all other
+GitHub API operations. The `GH_PAT_TOKEN` secret must be configured in Cursor
+Cloud secrets (team-scoped, injected as env var).
+
+### Repo-specific instructions
+
+Each repository may append its own `## Cursor Cloud specific instructions`
+section to its local `AGENTS.md` (after policy sync) with repo-specific
+details such as:
+- Service ports and startup commands
+- Non-obvious dev environment caveats
+- Lint / test / build quick reference
+
+These repo-specific additions are not managed by policy-pack and will not be
+overwritten by policy sync (policy sync replaces only the policy-managed
+content above this section).

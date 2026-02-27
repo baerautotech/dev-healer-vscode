@@ -5,6 +5,7 @@ on:
     branches: [staging, main]
     paths:
       - 'policy-files.json'
+      - '.markdownlintignore'
       - 'AGENTS.md'
       - '.cursor/**'
       - 'docs/DEPENDENCIES.md'

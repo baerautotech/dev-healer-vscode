@@ -18,13 +18,13 @@ export default defineConfig({
   testDir: "./tests",
   timeout: 30000,
   retries: 1,
-  
+
   // REQUIRED: Test against multiple viewports
   projects: [
     // Desktop
     {
       name: "desktop-chrome",
-      use: { 
+      use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 900 },
         screenshot: "on",
@@ -47,7 +47,7 @@ export default defineConfig({
       },
     },
   ],
-  
+
   reporter: [
     ["list"],
     ["html", { outputFolder: "playwright-report" }],

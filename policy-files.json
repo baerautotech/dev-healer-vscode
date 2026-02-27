@@ -1,6 +1,7 @@
 {
   "files": [
     "policy-files.json",
+    ".markdownlintignore",
     "AGENTS.md",
     ".cursor/agents.md",
     ".cursor/rules/policy-pack-and-decision-making.mdc",
