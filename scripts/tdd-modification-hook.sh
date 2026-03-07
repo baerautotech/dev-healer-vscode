@@ -73,8 +73,14 @@ case "${mode}" in
     check_paths "$2"
     ;;
   --staged)
-    mapfile -t changed_files < <(git diff --cached --name-only --diff-filter=ACMR)
-    check_paths "${changed_files[@]}"
+    # macOS compatible way to read lines into array
+    changed_files=()
+    while IFS= read -r line; do
+      changed_files+=("$line")
+    done < <(git diff --cached --name-only --diff-filter=ACMR)
+    if [ ${#changed_files[@]} -gt 0 ]; then
+      check_paths "${changed_files[@]}"
+    fi
     ;;
   --range)
     if [[ $# -lt 2 ]]; then

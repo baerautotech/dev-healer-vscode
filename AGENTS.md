@@ -49,6 +49,16 @@ creative and inventive UI/UX that stays minimal and purposeful.
 - Document results: Add a short review/results section to `tasks/todo.md` (what changed, how verified, links/commands used).
 - Capture lessons: After any correction from the user, update `tasks/lessons.md` with the pattern and a repeat-prevention rule.
 
+## Circuit Breakers (Non-Negotiable)
+
+1. **Anti-Polling Gate:** No turn may exceed 3 manual "wait-and-retry" loops (e.g., `kubectl get` while waiting for status). If a state transition does not occur within 3 attempts, the agent must either:
+   - Spawn a background `process` with a specific timeout.
+   - Stop execution and report the hang to the HIL.
+2. **The "Heartbeat" Rule:** For any task likely to exceed 5 minutes of execution or 10 tool calls, the agent MUST use the `message` tool to post a brief status update (e.g., "Step 2/5: Building docker image...") every ~3-5 minutes. **Never leave the HIL in a black hole for 30+ minutes.**
+3. **Tool Call Budget:** Any single task block exceeding 20 consecutive tool calls without a progress summary or HIL check-in triggers a "Context Breaker." The agent must stop, summarize current state, and ask for permission to continue.
+3. **Execution TTL:** Every `exec` or `process` call for long-running work must include an explicit `timeout` (seconds) and `yieldMs`. Background tasks without a defined exit condition are FORBIDDEN.
+4. **Identity Interlock:** Before any SSH or API command, the agent must verify the `IdentityFile` exists and matches the `User`. No "Muscle" claims of connectivity are accepted without a `ping` or `nc` verification by the "Brain."
+
 ## Self-improvement loop
 
 - Review `tasks/lessons.md` at session start for relevant patterns.
@@ -71,9 +81,18 @@ If a repository contains `policy-files.json`, it has opted into org policy sync 
 
 ## Git workflow (required)
 
-### Branch contract (non-negotiable)
+### UI/UX Validation Protocol (Hard Lock)
 
-- `main` is **PRODUCTION**.
+- **Mandatory Visual Confirmation:** The Orchestrator (Brain) is strictly prohibited from approving UI/UX work or marking it "DONE" without a visual audit.
+- **Physical Interaction Required:** Verification must include `browser` tool actions: taking a snapshot, clicking elements, dragging (if applicable), and confirming DOM state.
+- **No Optimization Bias:** A "200 OK" response from a server is NOT evidence of a functional UI. Evidence must be a visual snapshot showing the intended content.
+- **Sequential Gate:** No new tasks can be dispatched to the swarm if the current UI task has not cleared physical interaction testing.
+
+- **Mandatory Isolation:** All swarm work MUST occur in `.tracks/task-<ID>`.
+- **Stateless Injection:** Use `scripts/swarm_spawn.sh` for all muscle delegation.
+- **Zero Merge Permissions:** Muscle is forbidden from running `git merge` or `gh pr merge`.
+- **Handoff Only:** Final task output must be a single feature branch commit.
+- **Brain-Lock:** Only the Cypher Brain can approve, squash-merge, and delete the worktree.
   - Do **not** merge to `main` unless the user has explicitly issued a HIL (human-in-the-loop) instruction to do so.
 - `staging` is **QA / integration**.
   - All day-to-day rewrite work should land in `staging` first for testing and QA.
