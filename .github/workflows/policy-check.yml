@@ -92,8 +92,7 @@ jobs:
                 scripts/policy-propose.mjs|\
                 scripts/tdd-modification-hook.sh|\
                 .github/workflows/policy-check.yml|\
-                .github/workflows/policy-propose.yml|\
-                .github/workflows/policy-check-status.yml)
+                .github/workflows/policy-propose.yml)
                   run_policy_check="true"
                   break
                   ;;
