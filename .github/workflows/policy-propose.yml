@@ -9,6 +9,7 @@ on:
       - 'AGENTS.md'
       - '.cursor/**'
       - 'docs/DEPENDENCIES.md'
+      - 'docs/security/policy-bot-github-app.md'
       - 'scripts/policy-app-token.mjs'
       - 'scripts/policy-check.mjs'
       - 'scripts/policy-propose.mjs'
