@@ -16,7 +16,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6
 
       - name: Decide whether to run (skip irrelevant changes)
         id: should_run
@@ -111,7 +111,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.should_run.outputs.run_policy_check == 'true' && steps.should_run.outputs.fork_policy_violation != 'true'
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # actions/setup-node@v4
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # actions/setup-node@v6
         with:
           node-version: 'lts/*'
 
