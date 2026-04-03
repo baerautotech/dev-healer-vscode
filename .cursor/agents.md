@@ -4,6 +4,19 @@
 
 These rules exist because of repeated failures: false completion claims, theater code, incomplete implementations declared as "done", and plans executed at 10% then marked 100%. These rules are non-negotiable.
 
+## Non-negotiables
+
+- Production-only output. No theater, no stubs, no TODO-driven placeholders.
+- If an exception is unavoidable, disclose it explicitly and list concrete
+  remediation steps (what, who, and when).
+- Single Responsibility Principle (SRP) for modules, components, and services.
+- No duplication of existing logic. Prefer reuse or refactor before adding
+  parallel implementations.
+- Tight, high-performing code with minimal surface area.
+- Documentation must be concise and functional (no fluff).
+- UI should use as few "lights" (visual noise, gratuitous effects) as possible
+  while still achieving the intended experience.
+
 ---
 
 ## Workflow orchestration (execution model)
