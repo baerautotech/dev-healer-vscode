@@ -458,3 +458,28 @@ details such as:
 These repo-specific additions are not managed by policy-pack and will not be
 overwritten by policy sync (policy sync replaces only the policy-managed
 content above this section).
+
+## BMAD Story Workflow (Cursor Agent — Required)
+
+This repository uses the BMAD task registry. Before implementing any story:
+
+1. **Read the story first:**
+   ```bash
+   python3 scripts/bmad_registry.py get <STORY_ID>
+   ```
+   This returns the full context, DoD, ACs, and scope. Never implement without checking the registry.
+
+2. **Commit format:** `type(SXXXX): description`
+   - Examples: `feat(S1219): add cursor rule`, `fix(S0042): correct auth flow`
+   - The Warden enforces this at commit time via `scripts/bmad_commit_msg_gate.sh`.
+
+3. **Branch naming:** `feat/SXXXX-short-description` (e.g. `feat/S1219-cursor-agents-sync`)
+
+4. **No merges to `main`** — all work lands in `staging` first via PR.
+
+5. **Run the gate before starting:**
+   ```bash
+   bash scripts/bmad_gate.sh <STORY_ID>
+   ```
+
+6. **Update story status** as you progress: `todo` → `in_progress` → `done` (only when DoD verified with evidence).
